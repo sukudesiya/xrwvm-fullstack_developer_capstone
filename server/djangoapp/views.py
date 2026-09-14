@@ -1,25 +1,14 @@
-# Uncomment the required imports before adding the code
+import json
+import logging
 
-from django.shortcuts import render
-from django.http import HttpResponseRedirect, HttpResponse
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from django.shortcuts import get_object_or_404, render, redirect
-from django.contrib.auth import logout
-from django.contrib import messages
-from datetime import datetime
-from django.contrib.auth import authenticate, login
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+
 from .models import CarMake, CarModel
 from .populate import initiate
 from .restapis import get_request, analyze_review_sentiments, post_review
-import json
-
-from django.http import JsonResponse
-from django.contrib.auth import login, authenticate
-import logging
-import json
-from django.views.decorators.csrf import csrf_exempt
-# from .populate import initiate
 
 
 # Get an instance of a logger
@@ -28,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 # Create your views here.
 
-# Create a `login_request` view to handle sign in request
 @csrf_exempt
 def login_user(request):
     # Get username and password from request.POST dictionary
@@ -44,10 +32,12 @@ def login_user(request):
         data = {"userName": username, "status": "Authenticated"}
     return JsonResponse(data)
 
+
 def logout_request(request):
     logout(request)  # Terminate user session
     data = {"userName": ""}  # Return empty username
     return JsonResponse(data)
+
 
 @csrf_exempt
 def registration(request):
@@ -62,7 +52,7 @@ def registration(request):
     try:
         User.objects.get(username=username)
         username_exist = True
-    except:
+    except User.DoesNotExist:
         pass
 
     if not username_exist:
@@ -77,6 +67,7 @@ def registration(request):
         data = {"userName": username, "error": "Already Registered"}
         return JsonResponse(data)
 
+
 def get_cars(request):
     count = CarMake.objects.filter().count()
     print(count)
@@ -85,8 +76,12 @@ def get_cars(request):
     car_models = CarModel.objects.select_related('car_make')
     cars = []
     for car_model in car_models:
-        cars.append({"CarModel": car_model.name, "CarMake": car_model.car_make.name})
+        cars.append({
+            "CarModel": car_model.name,
+            "CarMake": car_model.car_make.name,
+        })
     return JsonResponse({"CarModels": cars})
+
 
 def get_dealerships(request, state="All"):
     if state == "All":
@@ -121,12 +116,15 @@ def get_dealer_reviews(request, dealer_id):
 
 @csrf_exempt
 def add_review(request):
-    if request.user.is_anonymous == False:
+    if not request.user.is_anonymous:
         data = json.loads(request.body)
         try:
-            response = post_review(data)
+            post_review(data)
             return JsonResponse({"status": 200})
-        except:
-            return JsonResponse({"status": 401, "message": "Error in posting review"})
+        except Exception:
+            return JsonResponse({
+                "status": 401,
+                "message": "Error in posting review",
+            })
     else:
         return JsonResponse({"status": 403, "message": "Unauthorized"})
